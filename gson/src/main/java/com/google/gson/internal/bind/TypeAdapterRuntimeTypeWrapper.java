@@ -53,10 +53,10 @@ final class TypeAdapterRuntimeTypeWrapper<T> extends TypeAdapter<T> {
     Type runtimeType = getRuntimeTypeIfMoreSpecific(type, value);
     if (runtimeType != type) {
       TypeAdapter runtimeTypeAdapter = context.getAdapter(TypeToken.get(runtimeType));
-      if (!(runtimeTypeAdapter instanceof ReflectiveTypeAdapterFactory.Adapter)) {
+      if (!(runtimeTypeAdapter instanceof NestedReflectiveTypeAdapterFactory.Adapter)) {
         // The user registered a type adapter for the runtime type, so we will use that
         chosen = runtimeTypeAdapter;
-      } else if (!(delegate instanceof ReflectiveTypeAdapterFactory.Adapter)) {
+      } else if (!(delegate instanceof NestedReflectiveTypeAdapterFactory.Adapter)) {
         // The user registered a type adapter for Base class, so we prefer it over the
         // reflective type adapter for the runtime type
         chosen = delegate;

@@ -28,9 +28,7 @@ import com.google.gson.stream.JsonWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -109,7 +107,14 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
         return new NestedField(name, serialize, deserialize) {
             @Override
             void write(JsonWriter writer, Object value) throws IOException, IllegalAccessException {
-                // TODO
+                writer.beginObject();
+                for (BoundField boundField : fields.values()) {
+                    if (boundField.serialized) {
+                        writer.name(boundField.name);
+                        boundField.write(writer, value);
+                    }
+                }
+                writer.endObject();
             }
 
             @Override
@@ -254,9 +259,6 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
             out.beginObject();
             try {
                 for (BoundField boundField : boundFields.values()) {
-                    if (boundField instanceof NestedField) {
-                        continue;
-                    }
                     if (boundField.serialized) {
                         out.name(boundField.name);
                         boundField.write(out, value);

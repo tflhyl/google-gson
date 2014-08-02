@@ -10,7 +10,7 @@ Fork from https://code.google.com/p/google-gson
 You can use `@NestedName` annotation to 'flatten' simple nested JSON object and map it to corresponding attribute of the target class.
 
 For example let's say we have this JSON:
-```json
+```javascript
 {
   id: 2608,
   name: "Beef Burger",

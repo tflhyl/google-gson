@@ -21,6 +21,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
 import com.google.gson.common.TestTypes.ClassWithSerializedNameFields;
+import com.google.gson.common.TestTypes.ClassWithNestedNameFields;
 import com.google.gson.common.TestTypes.StringWrapper;
 
 import junit.framework.TestCase;
@@ -109,6 +110,21 @@ public class NamingPolicyTest extends TestCase {
       fail();
     } catch (IllegalArgumentException expected) {
     }
+  }
+
+  public void testGsonWithNestedNameFieldNamingPolicySerialization() {
+      Gson gson = builder.create();
+      ClassWithNestedNameFields expected = new ClassWithNestedNameFields(5, 6);
+      String actual = gson.toJson(expected);
+      assertEquals(expected.getExpectedJson(), actual);
+  }
+
+  public void testGsonWithNestedNameFieldNamingPolicyDeserialization() {
+      Gson gson = builder.create();
+      ClassWithNestedNameFields expected = new ClassWithNestedNameFields(5, 7);
+      ClassWithNestedNameFields actual =
+          gson.fromJson(expected.getExpectedJson(), ClassWithNestedNameFields.class);
+      assertEquals(expected.f, actual.f);
   }
 
   public void testGsonWithUpperCamelCaseSpacesPolicySerialiation() {

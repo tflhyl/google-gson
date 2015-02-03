@@ -16,16 +16,6 @@
 
 package com.google.gson;
 
-import com.google.gson.internal.ConstructorConstructor;
-import com.google.gson.internal.Excluder;
-import com.google.gson.internal.Primitives;
-import com.google.gson.internal.Streams;
-import com.google.gson.internal.bind.*;
-import com.google.gson.reflect.TypeToken;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonToken;
-import com.google.gson.stream.JsonWriter;
-import com.google.gson.stream.MalformedJsonException;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.Reader;
@@ -40,6 +30,28 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.google.gson.internal.ConstructorConstructor;
+import com.google.gson.internal.Excluder;
+import com.google.gson.internal.Primitives;
+import com.google.gson.internal.Streams;
+import com.google.gson.internal.bind.ArrayTypeAdapter;
+import com.google.gson.internal.bind.CollectionTypeAdapterFactory;
+import com.google.gson.internal.bind.DateTypeAdapter;
+import com.google.gson.internal.bind.JsonAdapterAnnotationTypeAdapterFactory;
+import com.google.gson.internal.bind.JsonTreeReader;
+import com.google.gson.internal.bind.JsonTreeWriter;
+import com.google.gson.internal.bind.MapTypeAdapterFactory;
+import com.google.gson.internal.bind.ObjectTypeAdapter;
+import com.google.gson.internal.bind.NestedReflectiveTypeAdapterFactory;
+import com.google.gson.internal.bind.SqlDateTypeAdapter;
+import com.google.gson.internal.bind.TimeTypeAdapter;
+import com.google.gson.internal.bind.TypeAdapters;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+import com.google.gson.stream.MalformedJsonException;
 
 /**
  * This is the main class for using Gson. Gson is typically used by first constructing a
@@ -152,7 +164,7 @@ public final class Gson {
    *   <li>By default, Gson ignores the {@link com.google.gson.annotations.Since} annotation. You
    *   can enable Gson to use this annotation through {@link GsonBuilder#setVersion(double)}.</li>
    *   <li>The default field naming policy for the output Json is same as in Java. So, a Java class
-   *   field <code>versionNumber</code> will be output as <code>&quot;versionNumber@quot;</code> in
+   *   field <code>versionNumber</code> will be output as <code>&quot;versionNumber&quot;</code> in
    *   Json. The same rules are applied for mapping incoming Json to the Java classes. You can
    *   change this policy through {@link GsonBuilder#setFieldNamingPolicy(FieldNamingPolicy)}.</li>
    *   <li>By default, Gson excludes <code>transient</code> or <code>static</code> fields from
@@ -221,12 +233,13 @@ public final class Gson {
     factories.add(SqlDateTypeAdapter.FACTORY);
     factories.add(TypeAdapters.TIMESTAMP_FACTORY);
     factories.add(ArrayTypeAdapter.FACTORY);
-    factories.add(TypeAdapters.ENUM_FACTORY);
     factories.add(TypeAdapters.CLASS_FACTORY);
 
     // type adapters for composite and user-defined types
     factories.add(new CollectionTypeAdapterFactory(constructorConstructor));
     factories.add(new MapTypeAdapterFactory(constructorConstructor, complexMapKeySerialization));
+    factories.add(new JsonAdapterAnnotationTypeAdapterFactory(constructorConstructor));
+    factories.add(TypeAdapters.ENUM_FACTORY);
     factories.add(new NestedReflectiveTypeAdapterFactory(
         constructorConstructor, fieldNamingPolicy, excluder));
 
@@ -398,7 +411,7 @@ public final class Gson {
    *  }</pre>
    *  Note that since you can not override type adapter factories for String and Java primitive
    *  types, our stats factory will not count the number of String or primitives that will be
-   *  read or written. 
+   *  read or written.
    * @param skipPast The type adapter factory that needs to be skipped while searching for
    *   a matching type adapter. In most cases, you should just pass <i>this</i> (the type adapter
    *   factory from where {@link #getDelegateAdapter} method is being invoked).
@@ -408,6 +421,10 @@ public final class Gson {
    */
   public <T> TypeAdapter<T> getDelegateAdapter(TypeAdapterFactory skipPast, TypeToken<T> type) {
     boolean skipPastFound = false;
+    // Skip past if and only if the specified factory is present in the factories.
+    // This is useful because the factories created through JsonAdapter annotations are not
+    // registered in this list.
+    if (!factories.contains(skipPast)) skipPastFound = true;
 
     for (TypeAdapterFactory factory : factories) {
       if (!skipPastFound) {
@@ -671,7 +688,7 @@ public final class Gson {
    * @param <T> the type of the desired object
    * @param json the string from which the object is to be deserialized
    * @param classOfT the class of T
-   * @return an object of type T from the string
+   * @return an object of type T from the string. Returns {@code null} if {@code json} is {@code null}.
    * @throws JsonSyntaxException if json is not a valid representation for an object of type
    * classOfT
    */
@@ -694,7 +711,7 @@ public final class Gson {
    * <pre>
    * Type typeOfT = new TypeToken&lt;Collection&lt;Foo&gt;&gt;(){}.getType();
    * </pre>
-   * @return an object of type T from the string
+   * @return an object of type T from the string. Returns {@code null} if {@code json} is {@code null}.
    * @throws JsonParseException if json is not a valid representation for an object of type typeOfT
    * @throws JsonSyntaxException if json is not a valid representation for an object of type
    */
@@ -721,7 +738,7 @@ public final class Gson {
    * @param <T> the type of the desired object
    * @param json the reader producing the Json from which the object is to be deserialized.
    * @param classOfT the class of T
-   * @return an object of type T from the string
+   * @return an object of type T from the string. Returns {@code null} if {@code json} is at EOF.
    * @throws JsonIOException if there was a problem reading from the Reader
    * @throws JsonSyntaxException if json is not a valid representation for an object of type
    * @since 1.2
@@ -747,7 +764,7 @@ public final class Gson {
    * <pre>
    * Type typeOfT = new TypeToken&lt;Collection&lt;Foo&gt;&gt;(){}.getType();
    * </pre>
-   * @return an object of type T from the json
+   * @return an object of type T from the json. Returns {@code null} if {@code json} is at EOF.
    * @throws JsonIOException if there was a problem reading from the Reader
    * @throws JsonSyntaxException if json is not a valid representation for an object of type
    * @since 1.2
@@ -774,7 +791,7 @@ public final class Gson {
 
   /**
    * Reads the next JSON value from {@code reader} and convert it to an object
-   * of type {@code typeOfT}.
+   * of type {@code typeOfT}. Returns {@code null}, if the {@code reader} is at EOF.
    * Since Type is not parameterized by T, this method is type unsafe and should be used carefully
    *
    * @throws JsonIOException if there was a problem writing to the Reader
@@ -823,7 +840,7 @@ public final class Gson {
    * @param json the root of the parse tree of {@link JsonElement}s from which the object is to
    * be deserialized
    * @param classOfT The class of T
-   * @return an object of type T from the json
+   * @return an object of type T from the json. Returns {@code null} if {@code json} is {@code null}.
    * @throws JsonSyntaxException if json is not a valid representation for an object of type typeOfT
    * @since 1.3
    */
@@ -846,7 +863,7 @@ public final class Gson {
    * <pre>
    * Type typeOfT = new TypeToken&lt;Collection&lt;Foo&gt;&gt;(){}.getType();
    * </pre>
-   * @return an object of type T from the json
+   * @return an object of type T from the json. Returns {@code null} if {@code json} is {@code null}.
    * @throws JsonSyntaxException if json is not a valid representation for an object of type typeOfT
    * @since 1.3
    */
@@ -885,9 +902,9 @@ public final class Gson {
 
   @Override
   public String toString() {
-  	return new StringBuilder("{serializeNulls:")
-  	    .append(serializeNulls)
-  	    .append("factories:").append(factories)
+    return new StringBuilder("{serializeNulls:")
+        .append(serializeNulls)
+        .append("factories:").append(factories)
         .append(",instanceCreators:").append(constructorConstructor)
         .append("}")
         .toString();

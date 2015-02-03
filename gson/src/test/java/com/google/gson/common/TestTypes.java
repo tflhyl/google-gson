@@ -28,6 +28,7 @@ import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.google.gson.annotations.SerializedName;
+import com.google.gson.annotations.NestedName;
 
 /**
  * Types used for testing JSON serialization and deserialization
@@ -36,7 +37,7 @@ import com.google.gson.annotations.SerializedName;
  * @author Joel Leitch
  */
 public class TestTypes {
-  
+
   public static class Base {
     public static final String BASE_NAME = Base.class.getSimpleName();
     public static final String BASE_FIELD_KEY = "baseName";
@@ -76,20 +77,20 @@ public class TestTypes {
   }
 
   public static class BaseSerializer implements JsonSerializer<Base> {
-    public static final String NAME = BaseSerializer.class.getSimpleName(); 
+    public static final String NAME = BaseSerializer.class.getSimpleName();
     public JsonElement serialize(Base src, Type typeOfSrc, JsonSerializationContext context) {
       JsonObject obj = new JsonObject();
       obj.addProperty(Base.SERIALIZER_KEY, NAME);
       return obj;
-    }    
+    }
   }
   public static class SubSerializer implements JsonSerializer<Sub> {
-    public static final String NAME = SubSerializer.class.getSimpleName(); 
+    public static final String NAME = SubSerializer.class.getSimpleName();
     public JsonElement serialize(Sub src, Type typeOfSrc, JsonSerializationContext context) {
       JsonObject obj = new JsonObject();
       obj.addProperty(Base.SERIALIZER_KEY, NAME);
       return obj;
-    }    
+    }
   }
 
   public static class StringWrapper {
@@ -269,7 +270,7 @@ public class TestTypes {
   }
 
   public static class ClassWithTransientFields<T> {
-    public transient T transientT; 
+    public transient T transientT;
     public final transient long transientLongValue;
     private final long[] longValue;
 
@@ -402,14 +403,32 @@ public class TestTypes {
       return '{' + "\"fooBar\":" + f + ",\"Another Foo\":" + g + '}';
     }
   }
-  
+
+  public static class ClassWithNestedNameFields {
+      @SerializedName("fooBar") public final int f;
+      @NestedName(parent = "foo", value = "bar") public final int g;
+
+      public ClassWithNestedNameFields() {
+          this(1, 4);
+      }
+
+      public ClassWithNestedNameFields(int f, int g) {
+          this.f = f;
+          this.g = g;
+      }
+
+      public String getExpectedJson() {
+          return '{' + "\"fooBar\":" + f + ",\"foo\":{\"bar\":" + g + "}}";
+      }
+  }
+
   public static class CrazyLongTypeAdapter
       implements JsonSerializer<Long>, JsonDeserializer<Long> {
     public static final long DIFFERENCE = 5L;
     public JsonElement serialize(Long src, Type typeOfSrc, JsonSerializationContext context) {
       return new JsonPrimitive(src + DIFFERENCE);
     }
-    
+
     public Long deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
         throws JsonParseException {
       return json.getAsLong() - DIFFERENCE;

@@ -16,20 +16,30 @@
 
 package com.google.gson.internal.bind;
 
-import com.google.gson.*;
+import com.google.gson.FieldNamingStrategy;
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
+import com.google.gson.TypeAdapter;
+import com.google.gson.TypeAdapterFactory;
+import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.NestedName;
 import com.google.gson.annotations.SerializedName;
-import com.google.gson.internal.*;
+import com.google.gson.internal.$Gson$Types;
+import com.google.gson.internal.ConstructorConstructor;
+import com.google.gson.internal.Excluder;
+import com.google.gson.internal.ObjectConstructor;
+import com.google.gson.internal.Primitives;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static com.google.gson.internal.bind.JsonAdapterAnnotationTypeAdapterFactory.getTypeAdapter;
 
 /**
  * Type adapter that reflects over the fields and methods of a class.
@@ -47,10 +57,18 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
     }
 
     public boolean excludeField(Field f, boolean serialize) {
+        return excludeField(f, serialize, excluder);
+    }
+
+    static boolean excludeField(Field f, boolean serialize, Excluder excluder) {
         return !excluder.excludeClass(f.getType(), serialize) && !excluder.excludeField(f, serialize);
     }
 
     private String getFieldName(Field f) {
+        return getFieldName(fieldNamingPolicy, f);
+    }
+
+    static String getFieldName(FieldNamingStrategy fieldNamingPolicy, Field f) {
         SerializedName serializedName = f.getAnnotation(SerializedName.class);
         return serializedName == null ? fieldNamingPolicy.translateName(f) : serializedName.value();
     }
@@ -70,28 +88,28 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
             final Gson context, final Field field, final String name,
             final TypeToken<?> fieldType, boolean serialize, boolean deserialize) {
         final boolean isPrimitive = Primitives.isPrimitive(fieldType.getRawType());
-
         // special casing primitives here saves ~5% on Android...
         return new NestedReflectiveTypeAdapterFactory.BoundField(name, serialize, deserialize) {
-            final TypeAdapter<?> typeAdapter = context.getAdapter(fieldType);
-
+            final TypeAdapter<?> typeAdapter = getFieldAdapter(context, field, fieldType);
             @SuppressWarnings({"unchecked", "rawtypes"}) // the type adapter and field type always agree
-            @Override
-            void write(JsonWriter writer, Object value)
+            @Override void write(JsonWriter writer, Object value)
                     throws IOException, IllegalAccessException {
                 Object fieldValue = field.get(value);
                 TypeAdapter t =
                         new TypeAdapterRuntimeTypeWrapper(context, this.typeAdapter, fieldType.getType());
                 t.write(writer, fieldValue);
             }
-
-            @Override
-            void read(JsonReader reader, Object value)
+            @Override void read(JsonReader reader, Object value)
                     throws IOException, IllegalAccessException {
                 Object fieldValue = typeAdapter.read(reader);
                 if (fieldValue != null || !isPrimitive) {
                     field.set(value, fieldValue);
                 }
+            }
+            public boolean writeField(Object value) throws IOException, IllegalAccessException {
+                if (!serialized) return false;
+                Object fieldValue = field.get(value);
+                return fieldValue != value; // avoid recursion for example for Throwable.cause
             }
         };
     }
@@ -109,7 +127,7 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
             void write(JsonWriter writer, Object value) throws IOException, IllegalAccessException {
                 writer.beginObject();
                 for (BoundField boundField : fields.values()) {
-                    if (boundField.serialized) {
+                    if (boundField.writeField(value)) {
                         writer.name(boundField.name);
                         boundField.write(writer, value);
                     }
@@ -131,7 +149,21 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
                 }
                 reader.endObject();
             }
+
+            @Override
+            public boolean writeField(Object value) throws IOException, IllegalAccessException {
+                return serialized;
+            }
         };
+    }
+
+    private TypeAdapter<?> getFieldAdapter(Gson gson, Field field, TypeToken<?> fieldType) {
+        JsonAdapter annotation = field.getAnnotation(JsonAdapter.class);
+        if (annotation != null) {
+            TypeAdapter<?> adapter = getTypeAdapter(constructorConstructor, gson, fieldType, annotation);
+            if (adapter != null) return adapter;
+        }
+        return gson.getAdapter(fieldType);
     }
 
     private Map<String, BoundField> getBoundFields(Gson context, TypeToken<?> type, Class<?> raw) {
@@ -205,9 +237,8 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
             this.serialized = serialized;
             this.deserialized = deserialized;
         }
-
+        abstract boolean writeField(Object value) throws IOException, IllegalAccessException;
         abstract void write(JsonWriter writer, Object value) throws IOException, IllegalAccessException;
-
         abstract void read(JsonReader reader, Object value) throws IOException, IllegalAccessException;
     }
 
@@ -259,7 +290,7 @@ public final class NestedReflectiveTypeAdapterFactory implements TypeAdapterFact
             out.beginObject();
             try {
                 for (BoundField boundField : boundFields.values()) {
-                    if (boundField.serialized) {
+                    if (boundField.writeField(value)) {
                         out.name(boundField.name);
                         boundField.write(out, value);
                     }

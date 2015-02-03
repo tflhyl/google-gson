@@ -20,7 +20,7 @@ For example let's say we have this JSON:
   }
 }
 ```
-Normally you would need to write custom deserializer or create a Counts object capture the likes and comments. With `@NestedName` you can now instead do this:
+Normally you would need to write custom deserializer or create a `Counts` to object capture the likes and comments. With `@NestedName` you can now instead do this:
 ```java
 public class Food {
   @SerializedName("id")
